@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数电发票勾选整理台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600;700&family=IBM+Plex+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Digital Invoice Workflow</p>
+        <h1>上传发票，直接拿到可勾选的结果表</h1>
+        <p class="hero-text">系统会按数电发票号码匹配全量台账，自动生成勾选上传文件。</p>
+      </div>
+      <div class="hero-summary">
+        <article class="hero-metric">
+          <span>运行方式</span>
+          <strong>本地处理</strong>
+        </article>
+        <article class="hero-metric">
+          <span>主要输入</span>
+          <strong>PDF + 全量导出</strong>
+        </article>
+        <article class="hero-metric">
+          <span>关键提醒</span>
+          <strong>开票日期以全量表为准</strong>
+        </article>
+      </div>
+    </header>
+
+    <main class="main-grid">
+      <section class="panel flow-panel">
+        <div class="panel-head">
+          <h2>上传流程</h2>
+        </div>
+        <form id="processForm" class="upload-grid">
+          <label class="upload-card">
+            <span class="upload-step">Step 1</span>
+            <strong>上传 PDF 发票</strong>
+            <input id="invoiceInput" name="invoices" type="file" accept=".pdf" multiple required>
+            <span id="invoiceMeta" class="meta-text">请选择一份或多份 PDF 发票</span>
+          </label>
+
+          <label class="upload-card">
+            <span class="upload-step">Step 2</span>
+            <strong>上传全量发票查询导出结果</strong>
+            <input id="fullExportInput" name="fullExport" type="file" accept=".xlsx" required>
+            <span id="fullExportMeta" class="meta-text">用于补全开票日期、票种、金额、税额等字段</span>
+          </label>
+
+          <div class="action-row">
+            <button id="pendingDownloadButton" class="ghost-button" type="button">生成导入清单模板</button>
+            <button id="processButton" class="primary-button" type="submit">生成勾选表</button>
+            <button id="resetButton" class="ghost-button" type="button">重置</button>
+            <span id="processStatus" class="status-text">等待上传</span>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel summary-panel">
+        <div class="panel-head">
+          <h2>结果概览</h2>
+          <div id="statusPill" class="status-pill">未执行</div>
+        </div>
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span>上传发票数</span>
+            <strong id="invoiceCount">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>成功匹配</span>
+            <strong id="matchedCount">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>收到普通发票</span>
+            <strong id="ordinaryCount">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>未匹配报错</span>
+            <strong id="errorCount">0</strong>
+          </article>
+          <article class="stat-card stat-wide">
+            <span>税额合计</span>
+            <strong id="taxTotal">¥0.00</strong>
+          </article>
+        </div>
+        <div class="download-bar">
+          <button id="downloadButton" class="primary-button" type="button" disabled>下载生成的 XLSX</button>
+          <p class="download-note">只有全部匹配成功后，才建议直接上传到电子税务局勾选。</p>
+        </div>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="panel-head">
+          <h2>待处理异常</h2>
+          <p id="errorHint">如果这里出现记录，说明有发票未在“全量发票查询导出结果”中找到对应信息。</p>
+        </div>
+        <ul id="errorList" class="error-list">
+          <li>当前没有异常。</li>
+        </ul>
+      </section>
+
+      <section class="panel ordinary-panel">
+        <div class="panel-head">
+          <h2>普通发票留档</h2>
+          <p>增值税普通发票不会写入勾选清单，只在这里统计和展示。</p>
+        </div>
+        <ul id="ordinaryList" class="error-list">
+          <li>当前没有普通发票。</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

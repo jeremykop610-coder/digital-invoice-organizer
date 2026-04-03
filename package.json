@@ -1,0 +1,16 @@
+{
+  "name": "digital-invoice-organizer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local web tool for matching digital invoice PDFs with tax export spreadsheets.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "pdf-parse": "^2.4.5",
+    "xlsx": "^0.18.5"
+  }
+}
