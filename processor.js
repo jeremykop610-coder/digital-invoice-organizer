@@ -263,7 +263,7 @@ function buildExportIndex(rows) {
     }
   }
 
-  return { byDigitalNumber, bySellerAndAmount };
+  return { byDigitalNumber, bySellerAndAmount, rows };
 }
 
 function readTemplateHeaders(sheet) {
@@ -359,7 +359,7 @@ async function parsePdfInvoice(file) {
     const text = normalizePdfText(result.text || "");
 
     return {
-      fileName: file.originalname,
+      fileName: normalizeUploadFileName(file.originalname),
       invoiceType: pickFirst(text, [/(电子发票（[^）]+）)/, /(数电发票（[^）]+）)/]),
       digitalInvoiceNumber: pickInvoiceNumber(text),
       issueDate: normalizeDate(pickFirst(text, [/开票日期[:：]\s*([0-9]{4}年[0-9]{2}月[0-9]{2}日)/, /([0-9]{4}-[0-9]{2}-[0-9]{2})/])),
@@ -392,7 +392,57 @@ function matchInvoice(invoice, exportIndex) {
     return exportIndex.bySellerAndAmount.get(fallbackKey);
   }
 
+  const fileNameMatched = matchInvoiceByFileName(invoice, exportIndex.rows || []);
+  if (fileNameMatched) {
+    return fileNameMatched;
+  }
+
   return null;
+}
+
+function matchInvoiceByFileName(invoice, rows) {
+  const clues = extractInvoiceFileNameClues(invoice.fileName);
+  if (!clues.issueDate || !clues.sellerKeyword) return null;
+
+  const candidates = rows.filter((row) => {
+    const rowDate = normalizeCompactDate(pickRowValue(row, ["开票日期"]));
+    if (rowDate !== clues.issueDate) return false;
+
+    const sellerName = cleanText(pickRowValue(row, ["销方名称", "销售方纳税人名称"]));
+    if (!sellerName.includes(clues.sellerKeyword)) return false;
+
+    return isSpecialInvoiceRow(row);
+  });
+
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function extractInvoiceFileNameClues(fileName) {
+  const baseName = cleanText(fileName).replace(/\.[^.]+$/, "");
+  const dateMatch = baseName.match(/(^|[^\d])(\d{2})(\d{2})(\d{2})(?!\d)/);
+  if (!dateMatch) {
+    return { issueDate: "", sellerKeyword: "" };
+  }
+
+  const year = Number(`20${dateMatch[2]}`);
+  const month = Number(dateMatch[3]);
+  const day = Number(dateMatch[4]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return { issueDate: "", sellerKeyword: "" };
+  }
+
+  const dateEndIndex = (dateMatch.index || 0) + dateMatch[0].length;
+  const sellerKeyword = baseName
+    .slice(dateEndIndex)
+    .replace(/发票.*$/, "")
+    .replace(/[（(].*$/, "")
+    .replace(/[^\p{Script=Han}A-Za-z0-9]/gu, "")
+    .trim();
+
+  return {
+    issueDate: `${year}${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}`,
+    sellerKeyword: sellerKeyword.length >= 2 ? sellerKeyword : "",
+  };
 }
 
 function buildTemplateRow({ order, templateHeaders, invoice, exportRow }) {
@@ -449,6 +499,18 @@ function inferRiskStatus(exportRow) {
 
 function normalizePdfText(text) {
   return text.replace(/\u0000/g, "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeUploadFileName(fileName) {
+  const text = cleanText(fileName);
+  if (!text) return "";
+
+  const decoded = Buffer.from(text, "latin1").toString("utf8");
+  return countChineseCharacters(decoded) > countChineseCharacters(text) ? decoded : text;
+}
+
+function countChineseCharacters(value) {
+  return (String(value || "").match(/\p{Script=Han}/gu) || []).length;
 }
 
 function pickBuyerName(text) {
