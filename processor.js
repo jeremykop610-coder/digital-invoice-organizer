@@ -9,8 +9,9 @@ const TEMPLATE_DEFAULTS = {
   "发票来源": "电子发票服务平台",
 };
 
-const DEFAULT_TEMPLATE_PATH = path.join(__dirname, "samples", "抵扣勾选增值税发票信息.xlsx");
-const IMPORT_TEMPLATE_PATH = path.join(__dirname, "samples", "导入清单模板.xlsx");
+const TEMPLATE_DIR_CANDIDATES = ["samples-private", "samples"];
+const DEFAULT_TEMPLATE_PATH = resolveTemplatePath("抵扣勾选增值税发票信息.xlsx");
+const IMPORT_TEMPLATE_PATH = resolveTemplatePath("导入清单模板.xlsx");
 
 async function processInvoiceBundle({ invoiceFiles, fullExportFile }) {
   const fullExportWorkbook = XLSX.read(fullExportFile.buffer, { type: "buffer", cellDates: false });
@@ -148,21 +149,31 @@ async function buildPendingDownloadWorkbook({ invoiceFiles, fullExportFile, now 
 }
 
 function loadTemplateWorkbook() {
-  if (!fs.existsSync(DEFAULT_TEMPLATE_PATH)) {
-    throw new Error(`后台模板不存在：${DEFAULT_TEMPLATE_PATH}`);
+  const templatePath = DEFAULT_TEMPLATE_PATH.path;
+  if (!templatePath) {
+    throw new Error(`后台模板不存在，已查找：${DEFAULT_TEMPLATE_PATH.candidates.join("、")}`);
   }
-  return XLSX.read(fs.readFileSync(DEFAULT_TEMPLATE_PATH), { type: "buffer", cellDates: false });
+  return XLSX.read(fs.readFileSync(templatePath), { type: "buffer", cellDates: false });
 }
 
 function loadImportTemplateWorkbook() {
-  if (!fs.existsSync(IMPORT_TEMPLATE_PATH)) {
-    throw new Error(`导入清单模板不存在：${IMPORT_TEMPLATE_PATH}`);
+  const templatePath = IMPORT_TEMPLATE_PATH.path;
+  if (!templatePath) {
+    throw new Error(`导入清单模板不存在，已查找：${IMPORT_TEMPLATE_PATH.candidates.join("、")}`);
   }
-  return XLSX.read(fs.readFileSync(IMPORT_TEMPLATE_PATH), {
+  return XLSX.read(fs.readFileSync(templatePath), {
     type: "buffer",
     cellDates: false,
     cellStyles: true,
   });
+}
+
+function resolveTemplatePath(fileName) {
+  const candidates = TEMPLATE_DIR_CANDIDATES.map((dirName) => path.join(__dirname, dirName, fileName));
+  return {
+    path: candidates.find((candidate) => fs.existsSync(candidate)) || "",
+    candidates,
+  };
 }
 
 function readSelectionRows(workbook) {
