@@ -116,7 +116,7 @@ async function buildPendingDownloadWorkbook({ invoiceFiles, fullExportFile, now 
 
   const pendingRows = [];
   const filteredRows = fullExportRows.filter((row) => {
-    if (!isSpecialInvoiceRow(row)) return false;
+    if (!isPendingImportEligibleRow(row)) return false;
     if (!isPreviousMonthInvoice(row["开票日期"], now)) return false;
     if (redFlushedRelatedInvoiceNumbers.has(normalizeNumber(pickRowValue(row, ["数电发票号码", "发票号码", "发票代码"])))) {
       return false;
@@ -357,19 +357,20 @@ async function parsePdfInvoice(file) {
   try {
     const result = await parser.getText();
     const text = normalizePdfText(result.text || "");
+    const fileName = normalizeUploadFileName(file.originalname);
 
     return {
-      fileName: normalizeUploadFileName(file.originalname),
-      invoiceType: pickFirst(text, [/(电子发票（[^）]+）)/, /(数电发票（[^）]+）)/]),
-      digitalInvoiceNumber: pickInvoiceNumber(text),
-      issueDate: normalizeDate(pickFirst(text, [/开票日期[:：]\s*([0-9]{4}年[0-9]{2}月[0-9]{2}日)/, /([0-9]{4}-[0-9]{2}-[0-9]{2})/])),
+      fileName,
+      invoiceType: pickInvoiceType(text),
+      digitalInvoiceNumber: pickInvoiceNumber(text) || pickInvoiceNumber(fileName),
+      issueDate: pickInvoiceIssueDate(text),
       buyerName: pickBuyerName(text),
       buyerTaxNo: pickFirst(text, [/购\s*买\s*方\s*信\s*息.*?统一社会信用代码\/纳税人识别号[:：]?\s*([0-9A-Z]{15,25})/]),
       sellerName: pickSellerName(text),
       sellerTaxNo: pickFirst(text, [/销\s*售\s*方\s*信\s*息.*?统一社会信用代码\/纳税人识别号[:：]?\s*([0-9A-Z]{15,25})/, /\b([0-9A-Z]{15,25})\b/g], true),
       amount: parseMoney(pickFirst(text, [/合\s*计\s*¥?\s*([0-9,]+\.[0-9]{2})/, /¥\s*([0-9,]+\.[0-9]{2})\s+¥\s*[0-9,]+\.[0-9]{2}\s+价税合计/])),
       tax: parseMoney(pickFirst(text, [/合\s*计\s*¥?\s*[0-9,]+\.[0-9]{2}\s+¥?\s*([0-9,]+\.[0-9]{2})/, /税\s*额\s.*?([0-9,]+\.[0-9]{2})\s+开票人/])),
-      grossAmount: parseMoney(pickFirst(text, [/（小写）\s*¥?\s*([0-9,]+\.[0-9]{2})/, /¥\s*([0-9,]+\.[0-9]{2})\s+壹/, /¥\s*([0-9,]+\.[0-9]{2})\s+贰/, /¥\s*([0-9,]+\.[0-9]{2})\s+叁/])),
+      grossAmount: parseMoney(pickFirst(text, [/（小写）\s*¥?\s*([0-9,]+\.[0-9]{2})/, /¥\s*([0-9,]+\.[0-9]{2})\s+壹/, /¥\s*([0-9,]+\.[0-9]{2})\s+贰/, /¥\s*([0-9,]+\.[0-9]{2})\s+叁/, /票\s*价\s*[:：]?\s*¥?\s*([0-9,]+\.[0-9]{2})/])),
       rawText: text,
     };
   } finally {
@@ -411,7 +412,7 @@ function matchInvoiceByFileName(invoice, rows) {
     const sellerName = cleanText(pickRowValue(row, ["销方名称", "销售方纳税人名称"]));
     if (!sellerName.includes(clues.sellerKeyword)) return false;
 
-    return isSpecialInvoiceRow(row);
+    return isSelectableUploadedInvoiceRow(row);
   });
 
   return candidates.length === 1 ? candidates[0] : null;
@@ -528,6 +529,22 @@ function pickSellerName(text) {
   return candidate ? cleanText(candidate[1]) : "";
 }
 
+function pickInvoiceType(text) {
+  return pickFirst(text, [
+    /(电子\s*发票（[^）]+）)/,
+    /(数电\s*发票（[^）]+）)/,
+  ]).replace(/\s+/g, "");
+}
+
+function pickInvoiceIssueDate(text) {
+  const chineseDate = text.match(/开\s*票\s*日\s*期\s*[:：]?\s*([0-9]{4})\s*年\s*([0-9]{1,2})\s*月\s*([0-9]{1,2})\s*日/);
+  if (chineseDate) {
+    return `${chineseDate[1]}-${String(chineseDate[2]).padStart(2, "0")}-${String(chineseDate[3]).padStart(2, "0")}`;
+  }
+
+  return normalizeDate(pickFirst(text, [/([0-9]{4}-[0-9]{2}-[0-9]{2})/]));
+}
+
 function pickInvoiceNumber(text) {
   return pickFirst(text, [
     /(?:数\s*电\s*发\s*票\s*号\s*码|发\s*票\s*号\s*码)[:：]?\s*([0-9]{20})(?![0-9A-Z])/,
@@ -606,6 +623,18 @@ function isNormalInvoiceStatus(row) {
 
 function isSpecialInvoiceRow(row) {
   return /(增值税专用发票)/.test(String(pickRowValue(row, ["发票票种", "票种", "发票种类"]) || ""));
+}
+
+function isRailwayElectronicInvoiceRow(row) {
+  return /(铁路电子客票|铁路电子发票)/.test(String(pickRowValue(row, ["发票票种", "票种", "发票种类"]) || ""));
+}
+
+function isSelectableUploadedInvoiceRow(row) {
+  return isSpecialInvoiceRow(row) || isRailwayElectronicInvoiceRow(row);
+}
+
+function isPendingImportEligibleRow(row) {
+  return isSpecialInvoiceRow(row) && !isRailwayElectronicInvoiceRow(row);
 }
 
 function isPreviousMonthInvoice(value, now = new Date()) {
