@@ -30,11 +30,11 @@ const apiOrigin = resolveApiOrigin();
 invoiceInput.addEventListener("change", () => {
   invoiceMeta.textContent = invoiceInput.files.length
     ? `已选择 ${invoiceInput.files.length} 份 PDF 发票`
-    : "请选择一份或多份 PDF 发票";
+    : "尚未选择文件";
 });
 
 fullExportInput.addEventListener("change", () => {
-  fullExportMeta.textContent = fullExportInput.files[0]?.name || "用于补全开票日期、票种、金额、税额等字段";
+  fullExportMeta.textContent = fullExportInput.files[0]?.name || "尚未选择文件";
 });
 
 processForm.addEventListener("submit", async (event) => {
@@ -65,8 +65,8 @@ processForm.addEventListener("submit", async (event) => {
 
 resetButton.addEventListener("click", () => {
   processForm.reset();
-  invoiceMeta.textContent = "请选择一份或多份 PDF 发票";
-  fullExportMeta.textContent = "用于补全开票日期、票种、金额、税额等字段";
+  invoiceMeta.textContent = "尚未选择文件";
+  fullExportMeta.textContent = "尚未选择文件";
   processStatus.textContent = "等待上传";
   clearResult();
 });
@@ -138,8 +138,8 @@ function clearResult() {
   ordinaryCount.textContent = "0";
   errorCount.textContent = "0";
   taxTotal.textContent = "¥0.00";
-  errorList.innerHTML = "<li>当前没有异常。</li>";
-  ordinaryList.innerHTML = "<li>当前没有普通发票。</li>";
+  errorList.innerHTML = '<li class="empty-state">当前没有异常。</li>';
+  ordinaryList.innerHTML = '<li class="empty-state">当前没有普通发票。</li>';
   setStatus("", "未执行");
   downloadButton.disabled = true;
 }
@@ -148,7 +148,7 @@ function renderErrors(errors) {
   releaseErrorFileUrls();
   errorList.innerHTML = "";
   if (!errors.length) {
-    errorList.innerHTML = "<li>当前没有异常。</li>";
+    errorList.innerHTML = '<li class="empty-state">当前没有异常。</li>';
     return;
   }
 
@@ -180,7 +180,7 @@ function renderErrors(errors) {
 function renderOrdinary(rows) {
   ordinaryList.innerHTML = "";
   if (!rows.length) {
-    ordinaryList.innerHTML = "<li>当前没有普通发票。</li>";
+    ordinaryList.innerHTML = '<li class="empty-state">当前没有普通发票。</li>';
     return;
   }
 
