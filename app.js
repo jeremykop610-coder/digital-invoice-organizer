@@ -1,8 +1,6 @@
 const processForm = document.getElementById("processForm");
 const invoiceInput = document.getElementById("invoiceInput");
 const fullExportInput = document.getElementById("fullExportInput");
-const invoiceMeta = document.getElementById("invoiceMeta");
-const fullExportMeta = document.getElementById("fullExportMeta");
 const pendingDownloadButton = document.getElementById("pendingDownloadButton");
 const processButton = document.getElementById("processButton");
 const resetButton = document.getElementById("resetButton");
@@ -29,16 +27,6 @@ const state = {
 const apiOrigin = resolveApiOrigin();
 
 pendingMonthLabel.textContent = formatPreviousMonth(new Date());
-
-invoiceInput.addEventListener("change", () => {
-  invoiceMeta.textContent = invoiceInput.files.length
-    ? `已选择 ${invoiceInput.files.length} 份 PDF 发票`
-    : "尚未选择文件";
-});
-
-fullExportInput.addEventListener("change", () => {
-  fullExportMeta.textContent = fullExportInput.files[0]?.name || "尚未选择文件";
-});
 
 processForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -73,8 +61,6 @@ processForm.addEventListener("submit", async (event) => {
 
 resetButton.addEventListener("click", () => {
   processForm.reset();
-  invoiceMeta.textContent = "尚未选择文件";
-  fullExportMeta.textContent = "尚未选择文件";
   processStatus.textContent = "等待上传";
   clearResult();
 });

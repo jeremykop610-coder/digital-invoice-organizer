@@ -45,24 +45,17 @@
             <span class="panel-index">01</span>
             <h3>上传资料</h3>
           </div>
-          <p>上传资料后，先检查缺失专票，再生成最终勾选表</p>
         </div>
 
         <form id="processForm" class="upload-grid">
           <label class="upload-card">
-            <span class="upload-step">PDF Invoices</span>
-            <strong>选择发票原件</strong>
-            <span class="upload-copy">增值税专用发票、铁路电子客票</span>
+            <span class="upload-title"><strong>发票原件</strong><small>可多选 PDF</small></span>
             <input id="invoiceInput" name="invoices" type="file" accept=".pdf" multiple required>
-            <span id="invoiceMeta" class="meta-text">尚未选择文件</span>
           </label>
 
           <label class="upload-card">
-            <span class="upload-step">Full Export</span>
-            <strong>选择全量查询导出表</strong>
-            <span class="upload-copy">用于核验票号、日期、金额及税额</span>
+            <span class="upload-title"><strong>全量查询导出表</strong><small>XLSX</small></span>
             <input id="fullExportInput" name="fullExport" type="file" accept=".xlsx" required>
-            <span id="fullExportMeta" class="meta-text">尚未选择文件</span>
           </label>
 
           <div class="action-row">
@@ -71,16 +64,16 @@
                 <button id="pendingDownloadButton" class="workflow-button" type="button">
                   <span aria-hidden="true">01</span>生成导入清单
                 </button>
-                <p><strong id="pendingMonthLabel">上一个自然月</strong>，仅检查未上传的增值税专票</p>
+                <p><strong id="pendingMonthLabel">上一个自然月</strong> · 补齐未上传专票</p>
               </div>
               <div class="workflow-action">
                 <button id="processButton" class="workflow-button" type="submit">
                   <span aria-hidden="true">02</span>生成勾选表
                 </button>
-                <p><strong>不限发票月份</strong>，只处理本次上传并匹配成功的 PDF</p>
+                <p><strong>不限发票月份</strong> · 处理本次上传 PDF</p>
               </div>
             </div>
-            <p class="railway-rule"><strong>铁路电子发票</strong>仅处理已上传的 PDF，不会从全量表自动补入。</p>
+            <p class="railway-rule"><strong>铁路电子发票</strong>须上传 PDF，不从全量表自动补入。</p>
             <div class="action-meta">
               <button id="resetButton" class="text-button" type="button">重置</button>
               <span id="processStatus" class="status-text" role="status">等待上传</span>

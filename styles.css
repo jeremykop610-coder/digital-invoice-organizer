@@ -292,30 +292,34 @@ h1 {
 
 .upload-card {
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto;
-  gap: 7px;
+  grid-template-rows: auto 1fr;
+  gap: 18px;
   min-width: 0;
-  min-height: 208px;
-  padding: 20px;
+  min-height: 138px;
+  padding: 18px;
   border: 1px solid var(--line);
   border-top: 3px solid var(--navy);
-  background: #fbfaf7;
+  background: #fcfbf8;
 }
 
-.upload-step {
-  color: var(--oxblood);
-  font-size: 0.68rem;
-  font-weight: 600;
-  text-transform: uppercase;
+.upload-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.upload-card strong {
+.upload-title strong {
   font-family: "Noto Serif SC", Georgia, serif;
   font-size: 1.05rem;
 }
 
-.upload-copy,
-.meta-text,
+.upload-title small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
 .status-text,
 .download-note {
   color: var(--muted);
@@ -678,7 +682,7 @@ button:disabled {
   }
 
   .upload-card {
-    min-height: 190px;
+    min-height: 132px;
   }
 
   .action-row {
