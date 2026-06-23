@@ -5,7 +5,8 @@
   "description": "Local web tool for matching digital invoice PDFs with tax export spreadsheets.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test processor.test.js"
   },
   "dependencies": {
     "express": "^5.1.0",

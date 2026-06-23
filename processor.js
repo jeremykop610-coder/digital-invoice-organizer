@@ -19,6 +19,7 @@ async function processInvoiceBundle({ invoiceFiles, fullExportFile }) {
 
   const fullExportRows = mergeWorkbookRows(fullExportWorkbook);
   const exportIndex = buildExportIndex(fullExportRows);
+  const redFlushContext = buildRedFlushContext(fullExportRows);
   const templateSheet = templateWorkbook.Sheets[templateWorkbook.SheetNames[0]];
   const templateHeaders = readTemplateHeaders(templateSheet);
 
@@ -62,11 +63,34 @@ async function processInvoiceBundle({ invoiceFiles, fullExportFile }) {
       return;
     }
 
+    const matchedInvoiceNumber = normalizeNumber(pickRowValue(matched, ["数电发票号码", "发票号码", "发票代码"]));
+    if (redFlushContext.redInvoiceNumbers.has(matchedInvoiceNumber)) {
+      errors.push({
+        fileIndex: index,
+        fileName: invoice.fileName,
+        reason: "红字发票不参与勾选抵扣",
+        invoice,
+      });
+      return;
+    }
+
+    const effectiveDeductibleTax = calculateEffectiveDeductibleTax(matched, invoice, redFlushContext);
+    if (redFlushContext.fullyRedFlushedInvoiceNumbers.has(matchedInvoiceNumber)) {
+      errors.push({
+        fileIndex: index,
+        fileName: invoice.fileName,
+        reason: "原发票已全额红冲，无可抵扣税额",
+        invoice,
+      });
+      return;
+    }
+
     matchedRows.push(buildTemplateRow({
       order: matchedRows.length + 1,
       templateHeaders,
       invoice,
       exportRow: matched,
+      effectiveDeductibleTax,
     }));
   });
 
@@ -83,7 +107,7 @@ async function processInvoiceBundle({ invoiceFiles, fullExportFile }) {
       matchedCount: matchedRows.length,
       errorCount: errors.length,
       totalAmount: roundMoney(sumBy(matchedRows, "金额*")),
-      totalTax: roundMoney(sumBy(matchedRows, "票面税额*")),
+      totalTax: roundMoney(sumBy(matchedRows, "有效抵扣税额*")),
       buyerTaxNos: uniqueValues(matchedRows, "购买方识别号*"),
     },
     templateHeaders,
@@ -99,7 +123,7 @@ async function buildPendingDownloadWorkbook({ invoiceFiles, fullExportFile, now 
   const fullExportWorkbook = XLSX.read(fullExportFile.buffer, { type: "buffer", cellDates: false });
   const fullExportSourceRows = collectWorkbookRows(fullExportWorkbook);
   const fullExportRows = mergeWorkbookRows(fullExportWorkbook);
-  const existingSelectionRows = readSelectionRows(loadTemplateWorkbook());
+  const redFlushContext = buildRedFlushContext(fullExportSourceRows);
   const parsedInvoices = [];
 
   for (const file of invoiceFiles) {
@@ -111,17 +135,15 @@ async function buildPendingDownloadWorkbook({ invoiceFiles, fullExportFile, now 
       .filter((invoice) => !isOrdinaryInvoice(invoice))
       .flatMap((invoice) => buildInvoiceLookupKeys(invoice).filter(Boolean))
   );
-  const fullyRedFlushedInvoiceNumbers = buildFullyRedFlushedInvoiceNumberSet(existingSelectionRows, fullExportSourceRows);
-  const redFlushedRelatedInvoiceNumbers = buildRedFlushedRelatedInvoiceNumberSet(fullExportSourceRows);
-
   const pendingRows = [];
   const filteredRows = fullExportRows.filter((row) => {
     if (!isPendingImportEligibleRow(row)) return false;
     if (!isPreviousMonthInvoice(row["开票日期"], now)) return false;
-    if (redFlushedRelatedInvoiceNumbers.has(normalizeNumber(pickRowValue(row, ["数电发票号码", "发票号码", "发票代码"])))) {
+    const invoiceNumber = normalizeNumber(pickRowValue(row, ["数电发票号码", "发票号码", "发票代码"]));
+    if (redFlushContext.redInvoiceNumbers.has(invoiceNumber)) {
       return false;
     }
-    if (fullyRedFlushedInvoiceNumbers.has(normalizeNumber(pickRowValue(row, ["数电发票号码", "发票号码", "发票代码"])))) {
+    if (redFlushContext.fullyRedFlushedInvoiceNumbers.has(invoiceNumber)) {
       return false;
     }
 
@@ -176,14 +198,6 @@ function resolveTemplatePath(fileName) {
   };
 }
 
-function readSelectionRows(workbook) {
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(sheet, {
-    defval: "",
-    raw: false,
-  });
-}
-
 function buildEmptyImportTemplateWorkbook() {
   const workbook = loadImportTemplateWorkbook();
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -223,7 +237,10 @@ function buildImportTemplateWorkbook(rows) {
 }
 
 function mergeWorkbookRows(workbook) {
-  const rows = collectWorkbookRows(workbook);
+  return mergeRowsByInvoiceNumber(collectWorkbookRows(workbook));
+}
+
+function mergeRowsByInvoiceNumber(rows) {
   const merged = new Map();
 
   for (const row of rows) {
@@ -446,15 +463,15 @@ function extractInvoiceFileNameClues(fileName) {
   };
 }
 
-function buildTemplateRow({ order, templateHeaders, invoice, exportRow }) {
+function buildTemplateRow({ order, templateHeaders, invoice, exportRow, effectiveDeductibleTax }) {
   const base = {};
   for (const header of templateHeaders) {
-    base[header] = mapTemplateValue(header, invoice, exportRow, order);
+    base[header] = mapTemplateValue(header, invoice, exportRow, order, effectiveDeductibleTax);
   }
   return base;
 }
 
-function mapTemplateValue(header, invoice, exportRow, order) {
+function mapTemplateValue(header, invoice, exportRow, order, effectiveDeductibleTax) {
   const directMap = {
     "序号": order,
     "是否勾选*": TEMPLATE_DEFAULTS["是否勾选*"],
@@ -465,7 +482,7 @@ function mapTemplateValue(header, invoice, exportRow, order) {
     "开票日期*": pickRowValue(exportRow, ["开票日期"]) || invoice.issueDate || "",
     "金额*": numericOrString(pickRowValue(exportRow, ["金额", "发票金额（不含税）", "不含税金额", "金额(不含税)"]), invoice.amount),
     "票面税额*": numericOrString(pickRowValue(exportRow, ["税额"]), invoice.tax),
-    "有效抵扣税额*": numericOrString(pickRowValue(exportRow, ["税额"]), invoice.tax),
+    "有效抵扣税额*": effectiveDeductibleTax ?? numericOrString(pickRowValue(exportRow, ["有效抵扣税额", "税额"]), invoice.tax),
     "购买方识别号*": pickRowValue(exportRow, ["购方识别号", "购买方识别号"]) || invoice.buyerTaxNo || "",
     "销售方纳税人名称": pickRowValue(exportRow, ["销方名称", "销售方纳税人名称"]) || invoice.sellerName || "",
     "销售方纳税人识别号": pickRowValue(exportRow, ["销方识别号", "销售方纳税人识别号"]) || invoice.sellerTaxNo || "",
@@ -700,26 +717,40 @@ function buildRowLookupKeys(row) {
   return keys;
 }
 
-function buildFullyRedFlushedInvoiceNumberSet(selectionRows, fullExportRows) {
-  const redFlushTotals = buildRedFlushTotalsByOriginalInvoice(fullExportRows);
+function buildRedFlushContext(rows) {
+  const uniqueRows = mergeRowsByInvoiceNumber(rows);
+  const redFlushTotals = buildRedFlushTotalsByOriginalInvoice(uniqueRows);
+  const redInvoiceNumbers = buildRedInvoiceNumberSet(uniqueRows);
+  const fullyRedFlushedInvoiceNumbers = buildFullyRedFlushedInvoiceNumberSet(uniqueRows, redFlushTotals);
+
+  return {
+    redFlushTotals,
+    redInvoiceNumbers,
+    fullyRedFlushedInvoiceNumbers,
+  };
+}
+
+function buildFullyRedFlushedInvoiceNumberSet(rows, redFlushTotals) {
   const result = new Set();
 
-  for (const row of selectionRows) {
+  for (const row of rows) {
+    if (isRedInvoiceRow(row)) continue;
+
     const invoiceNumber = normalizeNumber(pickRowValue(row, ["数电发票号码", "发票号码", "发票代码"]));
     if (!invoiceNumber) continue;
 
     const redFlushTotal = redFlushTotals.get(invoiceNumber);
     if (!redFlushTotal) continue;
 
-    const amount = parseMoney(pickRowValue(row, ["金额*", "金额", "发票金额（不含税）", "不含税金额", "金额(不含税)"]));
-    const tax = parseMoney(pickRowValue(row, ["票面税额*", "有效抵扣税额*", "税额"]));
+    const amount = parseMoney(pickRowValue(row, ["金额", "发票金额（不含税）", "不含税金额", "金额(不含税)"]));
+    const tax = parseMoney(pickRowValue(row, ["有效抵扣税额", "有效抵扣税额*", "税额"]));
     const grossAmount = parseMoney(pickRowValue(row, ["价税合计", "价税总额", "合计金额"]));
 
-    const amountCovered = amount != null && Math.abs(redFlushTotal.amount) >= Math.abs(amount);
-    const taxCovered = tax != null && Math.abs(redFlushTotal.tax) >= Math.abs(tax);
-    const grossCovered = grossAmount != null && Math.abs(redFlushTotal.grossAmount) >= Math.abs(grossAmount);
+    const amountCovered = amount != null && redFlushTotal.amount >= Math.abs(amount) - 0.005;
+    const taxCovered = tax != null && redFlushTotal.tax >= Math.abs(tax) - 0.005;
+    const grossCovered = grossAmount != null && redFlushTotal.grossAmount >= Math.abs(grossAmount) - 0.005;
 
-    if ((amount != null || tax != null) ? amountCovered && taxCovered : grossCovered) {
+    if (tax != null ? taxCovered : (amount != null ? amountCovered : grossCovered)) {
       result.add(invoiceNumber);
     }
   }
@@ -731,7 +762,7 @@ function buildRedFlushTotalsByOriginalInvoice(rows) {
   const totals = new Map();
 
   for (const row of rows) {
-    if (cleanText(row["是否正数发票"]) === "是") continue;
+    if (!isRedInvoiceRow(row)) continue;
 
     const originalInvoiceNumber = extractOriginalInvoiceNumber(row);
     if (!originalInvoiceNumber) continue;
@@ -743,7 +774,7 @@ function buildRedFlushTotalsByOriginalInvoice(rows) {
     };
 
     current.amount = roundMoney(current.amount + Math.abs(parseMoney(pickRowValue(row, ["金额", "发票金额（不含税）", "不含税金额", "金额(不含税)"])) || 0));
-    current.tax = roundMoney(current.tax + Math.abs(parseMoney(pickRowValue(row, ["税额"])) || 0));
+    current.tax = roundMoney(current.tax + Math.abs(parseMoney(pickRowValue(row, ["有效抵扣税额", "有效抵扣税额*", "税额"])) || 0));
     current.grossAmount = roundMoney(current.grossAmount + Math.abs(parseMoney(pickRowValue(row, ["价税合计", "价税总额", "合计金额"])) || 0));
     totals.set(originalInvoiceNumber, current);
   }
@@ -751,24 +782,38 @@ function buildRedFlushTotalsByOriginalInvoice(rows) {
   return totals;
 }
 
-function buildRedFlushedRelatedInvoiceNumberSet(rows) {
+function buildRedInvoiceNumberSet(rows) {
   const result = new Set();
 
   for (const row of rows) {
-    if (cleanText(row["是否正数发票"]) === "是") continue;
+    if (!isRedInvoiceRow(row)) continue;
 
     const currentInvoiceNumber = normalizeNumber(pickRowValue(row, ["数电发票号码", "发票号码", "发票代码"]));
     if (currentInvoiceNumber) {
       result.add(currentInvoiceNumber);
     }
-
-    const originalInvoiceNumber = extractOriginalInvoiceNumber(row);
-    if (originalInvoiceNumber) {
-      result.add(originalInvoiceNumber);
-    }
   }
 
   return result;
+}
+
+function isRedInvoiceRow(row) {
+  const positiveFlag = cleanText(row["是否正数发票"]);
+  if (positiveFlag) return positiveFlag === "否";
+
+  const amount = parseMoney(pickRowValue(row, ["金额", "发票金额（不含税）", "不含税金额", "金额(不含税)"]));
+  const tax = parseMoney(pickRowValue(row, ["税额"]));
+  return (amount != null && amount < 0) || (tax != null && tax < 0);
+}
+
+function calculateEffectiveDeductibleTax(exportRow, invoice, redFlushContext) {
+  const originalTax = parseMoney(pickRowValue(exportRow, ["有效抵扣税额", "有效抵扣税额*", "税额"]))
+    ?? parseMoney(invoice.tax);
+  if (originalTax == null) return null;
+
+  const invoiceNumber = normalizeNumber(pickRowValue(exportRow, ["数电发票号码", "发票号码", "发票代码"]));
+  const redFlushTax = redFlushContext.redFlushTotals.get(invoiceNumber)?.tax || 0;
+  return Math.max(0, roundMoney(originalTax - redFlushTax));
 }
 
 function extractOriginalInvoiceNumber(row) {
@@ -825,4 +870,8 @@ function uniqueValues(rows, key) {
 module.exports = {
   buildPendingDownloadWorkbook,
   processInvoiceBundle,
+  __test: {
+    buildRedFlushContext,
+    calculateEffectiveDeductibleTax,
+  },
 };
