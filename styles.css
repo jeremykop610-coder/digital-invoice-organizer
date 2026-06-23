@@ -380,23 +380,27 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  min-width: 172px;
+  gap: 12px;
+  min-width: 184px;
+  border-color: #aeb4ba;
+  background: var(--paper);
+  color: var(--navy);
+  box-shadow: 0 3px 0 rgba(7, 26, 47, 0.08);
+}
+
+.workflow-button:hover {
+  border-color: var(--navy);
+  background: #f7f8f8;
+  box-shadow: 0 3px 0 rgba(7, 26, 47, 0.16);
 }
 
 .workflow-button span {
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid currentColor;
+  padding-right: 12px;
+  border-right: 1px solid var(--line);
+  color: var(--muted);
   font-family: "IBM Plex Sans SC", sans-serif;
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   font-weight: 600;
-}
-
-.primary-button.workflow-button span {
-  border-color: rgba(255, 255, 255, 0.55);
 }
 
 .text-button {
