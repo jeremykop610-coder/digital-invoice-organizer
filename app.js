@@ -49,12 +49,17 @@ processForm.addEventListener("submit", async (event) => {
   Array.from(invoiceInput.files).forEach((file) => formData.append("invoices", file));
   formData.append("fullExport", fullExportInput.files[0]);
 
-  setProcessing(true, "处理中，请稍候...");
+  setProcessing(true, "正在生成最终勾选表...");
 
   try {
     const payload = await postFormData("/api/process", formData);
     applyResult(payload);
-    setProcessing(false, payload.errors.length ? "处理完成，但存在未匹配发票" : "处理完成，可下载结果");
+    setProcessing(
+      false,
+      payload.errors.length
+        ? "第二步完成：勾选表已生成，但仍有未匹配发票。"
+        : "第二步完成：勾选表已生成，可下载结果。",
+    );
   } catch (error) {
     clearResult();
     setStatus("issue", "处理失败");
@@ -81,7 +86,7 @@ pendingDownloadButton.addEventListener("click", async () => {
   Array.from(invoiceInput.files).forEach((file) => formData.append("invoices", file));
   formData.append("fullExport", fullExportInput.files[0]);
 
-  setBusyState(true, "正在统计上月未上传专票...");
+  setBusyState(true, "正在执行第一步，检查上月未上传专票...");
 
   try {
     const payload = await postFormData("/api/pending-download", formData);
@@ -90,8 +95,8 @@ pendingDownloadButton.addEventListener("click", async () => {
     state.pendingOutputFileName = payload.outputFileName;
     downloadWorkbook(state.pendingWorkbookBytes, state.pendingOutputFileName || "导入清单模板.xlsx");
     processStatus.textContent = payload.pendingCount
-      ? `已生成导入清单模板，共 ${payload.pendingCount} 张上月未上传专票。`
-      : "已生成空白导入清单模板，当前没有符合条件的上月未上传专票。";
+      ? `第一步完成：已生成导入清单，共 ${payload.pendingCount} 张上月未上传专票。补齐发票后再生成勾选表。`
+      : "第一步完成：没有需补齐的上月专票，可直接生成勾选表。";
   } catch (error) {
     processStatus.textContent = error.message;
   } finally {

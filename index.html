@@ -45,7 +45,7 @@
             <span class="panel-index">01</span>
             <h3>上传资料</h3>
           </div>
-          <p>支持多份 PDF 发票及一份全量查询导出表</p>
+          <p>上传资料后，先检查缺失专票，再生成最终勾选表</p>
         </div>
 
         <form id="processForm" class="upload-grid">
@@ -66,8 +66,12 @@
           </label>
 
           <div class="action-row">
-            <button id="processButton" class="primary-button" type="submit">生成勾选表</button>
-            <button id="pendingDownloadButton" class="secondary-button" type="button">生成导入清单</button>
+            <button id="pendingDownloadButton" class="primary-button workflow-button" type="button">
+              <span aria-hidden="true">01</span>生成导入清单
+            </button>
+            <button id="processButton" class="secondary-button workflow-button" type="submit">
+              <span aria-hidden="true">02</span>生成勾选表
+            </button>
             <button id="resetButton" class="text-button" type="button">重置</button>
             <span id="processStatus" class="status-text" role="status">等待上传</span>
           </div>

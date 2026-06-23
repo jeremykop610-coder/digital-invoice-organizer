@@ -376,6 +376,29 @@ button {
   color: #fff;
 }
 
+.workflow-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 172px;
+}
+
+.workflow-button span {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid currentColor;
+  font-family: "IBM Plex Sans SC", sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.primary-button.workflow-button span {
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
 .text-button {
   min-height: 34px;
   padding: 0 8px;
@@ -627,6 +650,15 @@ button:disabled {
 
   .action-row button {
     flex: 1 1 145px;
+  }
+
+  .action-row .workflow-button {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .action-row .text-button {
+    flex: 0 0 auto;
   }
 
   .status-text {
