@@ -419,12 +419,45 @@ button {
 
 .action-row {
   grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
   min-height: 50px;
   padding-top: 6px;
+}
+
+.workflow-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.workflow-action .workflow-button {
+  width: 100%;
+}
+
+.workflow-action p,
+.railway-rule {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.workflow-action p strong,
+.railway-rule strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.railway-rule {
+  padding: 10px 12px;
+  border-left: 2px solid var(--gold);
+  background: rgba(180, 154, 101, 0.08);
+}
+
+.action-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
 }
 
 .status-text {
@@ -652,21 +685,16 @@ button:disabled {
     grid-column: auto;
   }
 
-  .action-row button {
-    flex: 1 1 145px;
+  .workflow-actions {
+    grid-template-columns: 1fr;
+    gap: 18px;
   }
 
-  .action-row .workflow-button {
-    flex: 1 1 100%;
+  .workflow-action .workflow-button {
     min-width: 0;
   }
 
-  .action-row .text-button {
-    flex: 0 0 auto;
-  }
-
   .status-text {
-    flex-basis: 100%;
     margin: 4px 0 0;
     text-align: left;
   }

@@ -66,14 +66,25 @@
           </label>
 
           <div class="action-row">
-            <button id="pendingDownloadButton" class="workflow-button" type="button">
-              <span aria-hidden="true">01</span>生成导入清单
-            </button>
-            <button id="processButton" class="workflow-button" type="submit">
-              <span aria-hidden="true">02</span>生成勾选表
-            </button>
-            <button id="resetButton" class="text-button" type="button">重置</button>
-            <span id="processStatus" class="status-text" role="status">等待上传</span>
+            <div class="workflow-actions">
+              <div class="workflow-action">
+                <button id="pendingDownloadButton" class="workflow-button" type="button">
+                  <span aria-hidden="true">01</span>生成导入清单
+                </button>
+                <p><strong id="pendingMonthLabel">上一个自然月</strong>，仅检查未上传的增值税专票</p>
+              </div>
+              <div class="workflow-action">
+                <button id="processButton" class="workflow-button" type="submit">
+                  <span aria-hidden="true">02</span>生成勾选表
+                </button>
+                <p><strong>不限发票月份</strong>，只处理本次上传并匹配成功的 PDF</p>
+              </div>
+            </div>
+            <p class="railway-rule"><strong>铁路电子发票</strong>仅处理已上传的 PDF，不会从全量表自动补入。</p>
+            <div class="action-meta">
+              <button id="resetButton" class="text-button" type="button">重置</button>
+              <span id="processStatus" class="status-text" role="status">等待上传</span>
+            </div>
           </div>
         </form>
       </section>

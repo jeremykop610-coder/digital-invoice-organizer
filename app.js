@@ -7,6 +7,7 @@ const pendingDownloadButton = document.getElementById("pendingDownloadButton");
 const processButton = document.getElementById("processButton");
 const resetButton = document.getElementById("resetButton");
 const processStatus = document.getElementById("processStatus");
+const pendingMonthLabel = document.getElementById("pendingMonthLabel");
 const statusPill = document.getElementById("statusPill");
 const invoiceCount = document.getElementById("invoiceCount");
 const matchedCount = document.getElementById("matchedCount");
@@ -26,6 +27,8 @@ const state = {
 };
 
 const apiOrigin = resolveApiOrigin();
+
+pendingMonthLabel.textContent = formatPreviousMonth(new Date());
 
 invoiceInput.addEventListener("change", () => {
   invoiceMeta.textContent = invoiceInput.files.length
@@ -212,6 +215,11 @@ function setBusyState(isBusy, message) {
   processButton.disabled = isBusy;
   downloadButton.disabled = isBusy || !state.workbookBytes;
   processStatus.textContent = message;
+}
+
+function formatPreviousMonth(now) {
+  const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `${previousMonth.getFullYear()}年${previousMonth.getMonth() + 1}月`;
 }
 
 function resolveApiOrigin() {
