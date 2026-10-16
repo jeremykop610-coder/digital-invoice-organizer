@@ -372,27 +372,90 @@ function createImportTemplateCell(value) {
 async function parsePdfInvoice(file) {
   const parser = new PDFParse({ data: file.buffer });
   try {
-    const result = await parser.getText();
-    const text = normalizePdfText(result.text || "");
+    const embeddedRailwayInvoice = await extractEmbeddedRailwayInvoice(parser);
+    let text = "";
+    try {
+      const result = await parser.getText();
+      text = normalizePdfText(result.text || "");
+    } catch (error) {
+      if (!embeddedRailwayInvoice) throw error;
+    }
     const fileName = normalizeUploadFileName(file.originalname);
 
     return {
       fileName,
-      invoiceType: pickInvoiceType(text),
-      digitalInvoiceNumber: pickInvoiceNumber(text) || pickInvoiceNumber(fileName),
-      issueDate: pickInvoiceIssueDate(text),
-      buyerName: pickBuyerName(text),
-      buyerTaxNo: pickFirst(text, [/购\s*买\s*方\s*信\s*息.*?统一社会信用代码\/纳税人识别号[:：]?\s*([0-9A-Z]{15,25})/]),
+      invoiceType: embeddedRailwayInvoice?.invoiceType || pickInvoiceType(text),
+      digitalInvoiceNumber: embeddedRailwayInvoice?.digitalInvoiceNumber || pickInvoiceNumber(text) || pickInvoiceNumber(fileName),
+      issueDate: embeddedRailwayInvoice?.issueDate || pickInvoiceIssueDate(text),
+      buyerName: embeddedRailwayInvoice?.buyerName || pickBuyerName(text),
+      buyerTaxNo: embeddedRailwayInvoice?.buyerTaxNo || pickFirst(text, [/购\s*买\s*方\s*信\s*息.*?统一社会信用代码\/纳税人识别号[:：]?\s*([0-9A-Z]{15,25})/]),
       sellerName: pickSellerName(text),
       sellerTaxNo: pickFirst(text, [/销\s*售\s*方\s*信\s*息.*?统一社会信用代码\/纳税人识别号[:：]?\s*([0-9A-Z]{15,25})/, /\b([0-9A-Z]{15,25})\b/g], true),
-      amount: parseMoney(pickFirst(text, [/合\s*计\s*¥?\s*([0-9,]+\.[0-9]{2})/, /¥\s*([0-9,]+\.[0-9]{2})\s+¥\s*[0-9,]+\.[0-9]{2}\s+价税合计/])),
-      tax: parseMoney(pickFirst(text, [/合\s*计\s*¥?\s*[0-9,]+\.[0-9]{2}\s+¥?\s*([0-9,]+\.[0-9]{2})/, /税\s*额\s.*?([0-9,]+\.[0-9]{2})\s+开票人/])),
-      grossAmount: parseMoney(pickFirst(text, [/（小写）\s*¥?\s*([0-9,]+\.[0-9]{2})/, /¥\s*([0-9,]+\.[0-9]{2})\s+壹/, /¥\s*([0-9,]+\.[0-9]{2})\s+贰/, /¥\s*([0-9,]+\.[0-9]{2})\s+叁/, /票\s*价\s*[:：]?\s*¥?\s*([0-9,]+\.[0-9]{2})/])),
+      amount: embeddedRailwayInvoice?.amount ?? parseMoney(pickFirst(text, [/合\s*计\s*¥?\s*([0-9,]+\.[0-9]{2})/, /¥\s*([0-9,]+\.[0-9]{2})\s+¥\s*[0-9,]+\.[0-9]{2}\s+价税合计/])),
+      tax: embeddedRailwayInvoice?.tax ?? parseMoney(pickFirst(text, [/合\s*计\s*¥?\s*[0-9,]+\.[0-9]{2}\s+¥?\s*([0-9,]+\.[0-9]{2})/, /税\s*额\s.*?([0-9,]+\.[0-9]{2})\s+开票人/])),
+      grossAmount: embeddedRailwayInvoice?.grossAmount ?? parseMoney(pickFirst(text, [/（小写）\s*¥?\s*([0-9,]+\.[0-9]{2})/, /¥\s*([0-9,]+\.[0-9]{2})\s+壹/, /¥\s*([0-9,]+\.[0-9]{2})\s+贰/, /¥\s*([0-9,]+\.[0-9]{2})\s+叁/, /票\s*价\s*[:：]?\s*¥?\s*([0-9,]+\.[0-9]{2})/])),
       rawText: text,
     };
   } finally {
     await parser.destroy();
   }
+}
+
+async function extractEmbeddedRailwayInvoice(parser) {
+  try {
+    await parser.getInfo();
+    const attachments = await parser.doc?.getAttachments?.();
+    if (!attachments) return null;
+
+    for (const attachment of Object.values(attachments)) {
+      const xml = Buffer.from(attachment?.content || []).toString("utf8");
+      const invoice = parseRailwayInvoiceXml(xml);
+      if (invoice) return invoice;
+    }
+  } catch (error) {
+    return null;
+  }
+
+  return null;
+}
+
+function parseRailwayInvoiceXml(xml) {
+  const digitalInvoiceNumber = pickXmlValue(xml, "ElectronicInvoiceRailwayETicketNumber");
+  if (!digitalInvoiceNumber) return null;
+
+  const grossAmount = parseMoney(pickXmlValue(xml, "Fare"));
+  return {
+    invoiceType: pickXmlValue(xml, "TypeOfVoucher") || "数电发票（铁路电子客票）",
+    digitalInvoiceNumber,
+    issueDate: normalizeDate(pickXmlValue(xml, "DateOfIssue")),
+    buyerName: pickXmlValue(xml, "NameOfPurchaser"),
+    buyerTaxNo: normalizeNumber(pickXmlValue(xml, "UnifiedSocialCreditCodeOfPurchaser")),
+    amount: parseMoney(pickXmlValue(xml, "TotalAmountExcludingTax")),
+    tax: parseMoney(pickXmlValue(xml, "TaxAmount")),
+    grossAmount,
+  };
+}
+
+function pickXmlValue(xml, localName) {
+  const escapedName = localName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = String(xml || "").match(new RegExp(
+    `<(?:[A-Za-z_][\\w.-]*:)?${escapedName}\\b[^>]*>([\\s\\S]*?)<\\/(?:[A-Za-z_][\\w.-]*:)?${escapedName}>`,
+    "i"
+  ));
+  if (!match) return "";
+
+  return decodeXmlEntities(match[1].replace(/^<!\[CDATA\[|\]\]>$/g, "")).trim();
+}
+
+function decodeXmlEntities(value) {
+  return String(value || "")
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&#([0-9]+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 
 function matchInvoice(invoice, exportIndex) {
@@ -873,5 +936,6 @@ module.exports = {
   __test: {
     buildRedFlushContext,
     calculateEffectiveDeductibleTax,
+    parseRailwayInvoiceXml,
   },
 };

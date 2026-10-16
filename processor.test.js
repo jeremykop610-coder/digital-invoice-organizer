@@ -50,3 +50,29 @@ test("cumulative full red flush leaves no deductible tax", () => {
   assert.equal(context.fullyRedFlushedInvoiceNumbers.has(originalInvoice["数电发票号码"]), true);
   assert.equal(__test.calculateEffectiveDeductibleTax(originalInvoice, { tax: null }, context), 0);
 });
+
+test("railway XBRL attachment provides invoice fields when PDF text is unreadable", () => {
+  const invoice = __test.parseRailwayInvoiceXml(`<?xml version="1.0" encoding="UTF-8"?>
+    <xbrl xmlns:rai="http://example.com/railway">
+      <rai:TypeOfVoucher>电子发票（铁路电子客票）</rai:TypeOfVoucher>
+      <rai:ElectronicInvoiceRailwayETicketNumber>26319132270002140337</rai:ElectronicInvoiceRailwayETicketNumber>
+      <rai:DateOfIssue>2026-09-28</rai:DateOfIssue>
+      <rai:Fare>86.00</rai:Fare>
+      <rai:TotalAmountExcludingTax>78.90</rai:TotalAmountExcludingTax>
+      <rai:TaxAmount>7.10</rai:TaxAmount>
+      <rai:NameOfPurchaser>上海安唐文化发展有限公司</rai:NameOfPurchaser>
+      <rai:UnifiedSocialCreditCodeOfPurchaser>91310112MAKB6BDK24</rai:UnifiedSocialCreditCodeOfPurchaser>
+      <rai:NumberOfOriginalInvoice>26319132270002089721</rai:NumberOfOriginalInvoice>
+    </xbrl>`);
+
+  assert.deepEqual(invoice, {
+    invoiceType: "电子发票（铁路电子客票）",
+    digitalInvoiceNumber: "26319132270002140337",
+    issueDate: "2026-09-28",
+    buyerName: "上海安唐文化发展有限公司",
+    buyerTaxNo: "91310112MAKB6BDK24",
+    amount: 78.9,
+    tax: 7.1,
+    grossAmount: 86,
+  });
+});
